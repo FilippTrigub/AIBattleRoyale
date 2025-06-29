@@ -65,7 +65,7 @@ class GameAgent:
 
         # Initialize game state
         self.game_state = GameState()
-        self.game_state.runtime_thinking_enabled = self.config.ACTION.get("THINKING", True)
+        self.game_state.runtime_thinking_enabled = False # self.config.ACTION.get("THINKING", True)
 
         # Initialize tool registry
         self.tool_registry = setup_tool_registry(self.pyboy, self.game_state)
@@ -77,8 +77,8 @@ class GameAgent:
         self.summarizer_claude = AIInterface(self.config)
 
         # Initialize summary generator
-        self.summary_generator = SummaryGenerator(self.summarizer_claude, self.game_state, self.tool_registry,
-                                                  self.config)
+        # self.summary_generator = SummaryGenerator(self.summarizer_claude, self.game_state, self.tool_registry,
+        #                                           self.config)
 
         # Initialize chat history
         self.chat_history = [[] for _ in range(len(self.agents))]
@@ -173,12 +173,12 @@ class GameAgent:
         # self._limit_screenshots_in_history()
 
         # Check if we need to generate a summary
-        if (self.config.SUMMARY["INITIAL_SUMMARY"] and self.game_state.turn_count == 1) or (
-                self.game_state.turn_count % self.config.SUMMARY[
-            "SUMMARY_INTERVAL"] == 0 and self.game_state.turn_count > 0):
-            logging.info(f"Generating summary at turn {self.game_state.turn_count}")
-            summary = self.summary_generator.generate_summary(self.game_state.complete_message_history)
-            self.game_state.update_summary(summary)
+        # if (self.config.SUMMARY["INITIAL_SUMMARY"] and self.game_state.turn_count == 1) or (
+        #         self.game_state.turn_count % self.config.SUMMARY[
+        #     "SUMMARY_INTERVAL"] == 0 and self.game_state.turn_count > 0):
+        #     logging.info(f"Generating summary at turn {self.game_state.turn_count}")
+        #     summary = self.summary_generator.generate_summary(self.game_state.complete_message_history)
+        #     self.game_state.update_summary(summary)
 
     def get_ai_response(self, agent_index):
         """Get AI response for the current game state."""
@@ -292,6 +292,13 @@ class GameAgent:
     def run_turn(self, agent_index):
         """Run a single turn of the game."""
         try:
+            self.game_state.set_active_agent_index(agent_index)
+
+            # check agent surrendered
+            if agent_index in self.game_state.agents_surrendered:
+                logging.info(f"Agent {agent_index} has surrendered, skipping turn.")
+                return
+
             # Get AI response
             message_content = self.get_ai_response(agent_index)
 
