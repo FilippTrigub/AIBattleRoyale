@@ -69,10 +69,12 @@ class GameAgent:
         self.tool_registry = setup_tool_registry(self.pyboy, self.game_state)
         
         # Initialize Claude interface
-        self.claude = ClaudeInterface(self.config)
+        # todo make number configurable
+        self.agents = [ClaudeInterface(self.config), ClaudeInterface(self.config)]
+        self.summarizer_claude = ClaudeInterface(self.config)
 
         # Initialize summary generator
-        self.summary_generator = SummaryGenerator(self.claude, self.game_state, self.tool_registry, self.config)
+        self.summary_generator = SummaryGenerator(self.summarizer_claude, self.game_state, self.tool_registry, self.config)
         
         # Initialize chat history
         self.chat_history = []
@@ -132,11 +134,11 @@ class GameAgent:
         logging.info(f"======= NEW TURN: {current_time_str} =======")
         self.game_state.log_state()
         
-        # Capture current screenshot
-        screenshot = take_screenshot(self.pyboy, True)
-        
+        # # Capture current screenshot
+        # screenshot = take_screenshot(self.pyboy, True)
+
         # Prepare user content with screenshot and optional wrapper text
-        user_content = [screenshot]
+        user_content = [] # [screenshot]
         if self.wrapper is not None and self.config.ENABLE_WRAPPER:
             user_content.append({"type": "text", "text": f"A textual representation of the current screen is:\n{self.wrapper}"})
         
@@ -156,7 +158,7 @@ class GameAgent:
             self.game_state.add_to_complete_history(user_message)
             
         # Apply the screenshot limit
-        self._limit_screenshots_in_history()
+        # self._limit_screenshots_in_history()
         
         # Check if we need to generate a summary
         if (self.config.SUMMARY["INITIAL_SUMMARY"] and self.game_state.turn_count == 1) or (self.game_state.turn_count % self.config.SUMMARY["SUMMARY_INTERVAL"] == 0 and self.game_state.turn_count > 0):
@@ -164,11 +166,11 @@ class GameAgent:
             summary = self.summary_generator.generate_summary(self.game_state.complete_message_history)
             self.game_state.update_summary(summary)
 
-    def get_ai_response(self):
+    def get_ai_response(self, agent_index):
         """Get AI response for the current game state."""
         try:
             # Generate system prompt
-            system_prompt = self.claude.generate_system_prompt()
+            system_prompt = self.agents[agent_index].generate_system_prompt()
             
             # Get tools
             tools = self.tool_registry.get_tools()
@@ -181,7 +183,7 @@ class GameAgent:
                 action_config["THINKING"] = self.config.MODEL_DEFAULTS.get("THINKING", True) and self.game_state.runtime_thinking_enabled
             
             # Send request to Claude
-            message = self.claude.send_request(
+            message = self.agents[agent_index].send_request(
                 action_config, 
                 system_prompt, 
                 self.chat_history, 
@@ -263,7 +265,7 @@ class GameAgent:
             
             # Apply the screenshot limit after adding tool results
             # Tool results may contain screenshots (e.g., from send_inputs)
-            self._limit_screenshots_in_history()
+            # self._limit_screenshots_in_history()
         
         # Limit chat history to max_messages (but keep complete history intact)
         if len(self.chat_history) > self.config.MAX_HISTORY_MESSAGES:
@@ -271,14 +273,11 @@ class GameAgent:
             
         return pending_actions
 
-    def run_turn(self):
+    def run_turn(self, agent_index):
         """Run a single turn of the game."""
         try:
-            # Prepare turn state
-            self.prepare_turn_state()
-            
             # Get AI response
-            message_content = self.get_ai_response()
+            message_content = self.get_ai_response(agent_index)
             
             # Process tools (execute all tools immediately)
             self.process_tool_results(message_content, execute_tools=True)
@@ -360,38 +359,42 @@ class GameAgent:
                 self.prepare_turn_state()
                 
                 # Get AI response
-                message_content = self.get_ai_response()
-                
-                # Process tools (don't execute send_inputs immediately)
-                actions = self.process_tool_results(message_content, execute_tools=False)
-                
-                # Safely update shared variables
-                with lock:
-                    pending_actions.extend(actions)
-                
-                # Calculate how long the analysis took
-                analysis_end_time = time.time()
-                last_analysis_duration = analysis_end_time - analysis_start_time
-                
-                # Update adaptive interval - use a moving average to smooth changes
-                # Mix 70% of current interval with 30% of new duration to smooth transitions
-                with lock:
-                    adaptive_interval = (0.7 * adaptive_interval) + (0.3 * last_analysis_duration)
-                    adaptive_interval = max(adaptive_interval, self.config.CONTINUOUS_ANALYSIS_INTERVAL)
-                
-                logging.info(f"======= END ANALYSIS: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} =======")
-                logging.info(f"Analysis took {last_analysis_duration:.2f} seconds, adaptive interval: {adaptive_interval:.2f}s")
-                
-                # Log a warning if the analysis took longer than the configured interval
-                if last_analysis_duration > self.config.CONTINUOUS_ANALYSIS_INTERVAL:
-                    logging.warning(f"Analysis took {last_analysis_duration:.2f} seconds, which is longer than " 
-                                   f"the configured interval of {self.config.CONTINUOUS_ANALYSIS_INTERVAL} seconds")
-                    logging.warning("Using adaptive interval to optimize analysis frequency")
-                
-                # Reset error count after successful analysis
-                with lock:
-                    self.error_count = 0
-                
+                for agent_index in range(len(self.agents)):
+                    logging.info(f"Starting turn-based emulation for agent {agent_index + 1}")
+                    print(f"Running in turn-based mode with {len(self.agents)} agents")
+
+                    message_content = self.get_ai_response(agent_index)
+
+                    # Process tools (don't execute send_inputs immediately)
+                    actions = self.process_tool_results(message_content, execute_tools=False)
+
+                    # Safely update shared variables
+                    with lock:
+                        pending_actions.extend(actions)
+
+                    # Calculate how long the analysis took
+                    analysis_end_time = time.time()
+                    last_analysis_duration = analysis_end_time - analysis_start_time
+
+                    # Update adaptive interval - use a moving average to smooth changes
+                    # Mix 70% of current interval with 30% of new duration to smooth transitions
+                    with lock:
+                        adaptive_interval = (0.7 * adaptive_interval) + (0.3 * last_analysis_duration)
+                        adaptive_interval = max(adaptive_interval, self.config.CONTINUOUS_ANALYSIS_INTERVAL)
+
+                    logging.info(f"======= END ANALYSIS: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} =======")
+                    logging.info(f"Analysis took {last_analysis_duration:.2f} seconds, adaptive interval: {adaptive_interval:.2f}s")
+
+                    # Log a warning if the analysis took longer than the configured interval
+                    if last_analysis_duration > self.config.CONTINUOUS_ANALYSIS_INTERVAL:
+                        logging.warning(f"Analysis took {last_analysis_duration:.2f} seconds, which is longer than " 
+                                       f"the configured interval of {self.config.CONTINUOUS_ANALYSIS_INTERVAL} seconds")
+                        logging.warning("Using adaptive interval to optimize analysis frequency")
+
+                    # Reset error count after successful analysis
+                    with lock:
+                        self.error_count = 0
+
             except Exception as e:
                 error_msg = f"CRITICAL ERROR during analysis: {str(e)}"
                 logging.critical(error_msg)
@@ -472,7 +475,8 @@ class GameAgent:
             # Mark analysis as complete
             with lock:
                 analysis_complete = True
-        
+
+
         # Main continuous emulation loop
         try:
             while True:
@@ -539,12 +543,19 @@ class GameAgent:
         """Run the game agent until completion."""
         # Print game title
         print(f"Game: {self.pyboy.cartridge_title}")
-        
+
+        # Prepare turn state
+        self.prepare_turn_state()
+
         # Main game loop based on emulation mode
         if self.config.EMULATION_MODE == "turn_based":
-            # Turn-based emulation mode
-            while not self.pyboy.tick():
-                self.run_turn()
+            for agent_index in range(len(self.agents)):
+                logging.info(f"Starting turn-based emulation for agent {agent_index + 1}")
+                print(f"Running in turn-based mode with {len(self.agents)} agents")
+
+                # Run turns for each agent
+                while not self.pyboy.tick():
+                    self.run_turn(agent_index)
         elif self.config.EMULATION_MODE == "continuous":
             # Continuous emulation mode
             self.run_continuous()
