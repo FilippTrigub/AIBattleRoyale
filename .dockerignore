@@ -1,0 +1,87 @@
+# Docker ignore file for AI Battle Royale
+# Ignore Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Environment variables (security)
+env.local
+.env.production
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+
+# Git
+.git/
+.gitignore
+
+# Docker files (don't include in build context)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation that's not needed in container
+*.md
+docs/
+
+# Scripts that are for local development
+start_server.bat
+*.bat
+*.sh
+
+# Testing files
+test_*
+tests/
+
+# Coverage reports
+htmlcov/
+.coverage
+.pytest_cache/

@@ -357,7 +357,7 @@ def main():
     chat_histories = [[], []]
     
     # Run the game for a fixed number of turns or until game over
-    max_turns = 10
+    max_turns = 5
     turn = 0
     agent_index = 0
     
@@ -457,7 +457,7 @@ def main():
                 break
             
             # Check for stalemate condition (simplified)
-            if turn > 3 and random.random() < 0.1:  # 10% chance after turn 3
+            if turn > 3 and random.random() < 0.01:  # 1% chance after turn 3
                 game_state.trigger_stalemate()
                 handle_game_end("stalemate", game_state)
                 break

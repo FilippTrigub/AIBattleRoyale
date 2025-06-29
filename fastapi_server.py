@@ -12,8 +12,9 @@ import asyncio
 import openai
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -380,9 +381,15 @@ async def root():
             "start_game": "/start-game",
             "stream_game": "/stream-game/{game_id}",
             "game_status": "/game-status/{game_id}",
-            "active_games": "/active-games"
+            "active_games": "/active-games",
+            "test_client": "/test_client.html"
         }
     }
+
+@app.get("/test_client.html")
+async def get_test_client():
+    """Serve the test client HTML file"""
+    return FileResponse("test_client.html", media_type="text/html")
 
 @app.post("/start-game")
 async def start_game(request: StartGameRequest):
@@ -626,7 +633,8 @@ async def delete_game(game_id: str):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "ok", "message": "AI Battle Royale server is running"}
+    found_api_key = os.getenv("OPENAI_API_KEY") is not None
+    return {"status": "ok", "message": f"AI Battle Royale server is running. Found api key: {found_api_key}"}
 
 if __name__ == "__main__":
     import uvicorn
