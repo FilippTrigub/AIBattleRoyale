@@ -4,13 +4,15 @@ from pyboy import PyBoy
 from claude_player.state.game_state import GameState
 from claude_player.tools.tool_registry import ToolRegistry
 from claude_player.utils.game_utils import press_and_release_buttons, take_screenshot
-from claude_player.config.config_loader import Config    
+from claude_player.config.config_loader import Config
+from claude_player.utils.tool_utils import tool_successful
+
 
 def setup_tool_registry(pyboy: PyBoy, game_state: GameState) -> ToolRegistry:
     """Set up the tool registry with all available tools."""
     registry = ToolRegistry(pyboy, game_state)
     
-    # Register send_inputs tool
+    # Register surrender tool
     @registry.register(
         name="surrender",
         description="Surrender the game.",
@@ -18,13 +20,38 @@ def setup_tool_registry(pyboy: PyBoy, game_state: GameState) -> ToolRegistry:
     )
     def handle_surrender(self) -> List[Dict[str, Any]]:
         logging.info(f"SURRENDERING: {self.game_state.active_agent_index}")
-        # press_and_release_buttons(self.pyboy, inputs)
-        # Capture new screenshot after applying inputs
-        # new_screenshot = take_screenshot(self.pyboy, True)
         self.game_state.surrender()
         return [
             {"type": "text", "text": "You have surrendered the game."}
         ]
+
+    # Register alliance tool
+    @registry.register(
+        name="propose alliance",
+        description="Propose an alliance with another player.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "player_number": {
+                    "type": "string",
+                    "description": "Number of the player"
+                }
+            },
+            "required": ["player_number"]
+        }
+    )
+    def handle_alliance(self, tool_input: Dict[str, Any]) -> List[Dict[str, Any]]:
+        logging.info(f"Propose alliance: Player {self.game_state.active_agent_index} proposes to player {tool_input['player_number']}")
+        success = tool_successful(50)
+        if success:
+            self.game_state.add_alliance(self.game_state.active_agent_index, tool_input["player_number"], self.config)
+            return [
+                {"type": "text", "text": f"Player {tool_input['player_number']} accepted the alliance proposal."},
+            ]
+        else:
+            return [
+                {"type": "text", "text": f"Player {tool_input['player_number']} rejected the alliance proposal."}
+            ]
     
     # # Register set_game tool
     # @registry.register(

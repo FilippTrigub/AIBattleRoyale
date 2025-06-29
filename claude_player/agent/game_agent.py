@@ -13,9 +13,7 @@ from claude_player.config.config_loader import setup_logging
 from claude_player.state.game_state import GameState
 from claude_player.tools.tool_setup import setup_tool_registry
 from claude_player.interface.ai_interface import AIInterface
-from claude_player.agent.summary_generator import SummaryGenerator
 from claude_player.utils.message_utils import MessageUtils
-from claude_player.utils.game_utils import take_screenshot
 
 
 class GameAgent:
