@@ -357,7 +357,7 @@ def main():
     chat_histories = [[], []]
     
     # Run the game for a fixed number of turns or until game over
-    max_turns = 5
+    max_turns = 10
     turn = 0
     agent_index = 0
     
