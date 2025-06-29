@@ -623,6 +623,11 @@ async def delete_game(game_id: str):
     del active_games[game_id]
     return {"message": f"Game {game_id} deleted successfully"}
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "ok", "message": "AI Battle Royale server is running"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
