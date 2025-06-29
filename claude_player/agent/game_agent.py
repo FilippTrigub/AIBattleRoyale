@@ -12,7 +12,7 @@ from claude_player.config.config_class import ConfigClass
 from claude_player.config.config_loader import setup_logging
 from claude_player.state.game_state import GameState
 from claude_player.tools.tool_setup import setup_tool_registry
-from claude_player.interface.claude_interface import ClaudeInterface
+from claude_player.interface.ai_interface import AIInterface
 from claude_player.agent.summary_generator import SummaryGenerator
 from claude_player.utils.message_utils import MessageUtils
 from claude_player.utils.game_utils import take_screenshot
@@ -69,9 +69,8 @@ class GameAgent:
         self.tool_registry = setup_tool_registry(self.pyboy, self.game_state)
         
         # Initialize Claude interface
-        # todo make number configurable
-        self.agents = [ClaudeInterface(self.config), ClaudeInterface(self.config)]
-        self.summarizer_claude = ClaudeInterface(self.config)
+        self.agents = [AIInterface(self.config, provider='google'), AIInterface(self.config, provider='google')]
+        self.summarizer_claude = AIInterface(self.config)
 
         # Initialize summary generator
         self.summary_generator = SummaryGenerator(self.summarizer_claude, self.game_state, self.tool_registry, self.config)

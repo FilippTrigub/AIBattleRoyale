@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any
 from claude_player.config.config_class import ConfigClass
-from claude_player.interface.claude_interface import ClaudeInterface
+from claude_player.interface.ai_interface import AIInterface
 from claude_player.state.game_state import GameState
 from claude_player.tools.tool_registry import ToolRegistry
 from claude_player.utils.message_utils import MessageUtils
@@ -10,7 +10,7 @@ from claude_player.utils.game_utils import button_rules
 class SummaryGenerator:
     """Generates game summaries to maintain context over long sessions."""
     
-    def __init__(self, client: ClaudeInterface, game_state: GameState, tool_registry: ToolRegistry, config: ConfigClass):
+    def __init__(self, client: AIInterface, game_state: GameState, tool_registry: ToolRegistry, config: ConfigClass):
         """Initialize the summary generator."""
         self.client = client
         self.game_state = game_state
