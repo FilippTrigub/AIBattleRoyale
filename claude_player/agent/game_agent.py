@@ -35,7 +35,7 @@ class GameAgent:
         
         # Initialize game components with sound enabled if in continuous mode
         pyboy_kwargs = {
-            "game_wrapper": True,
+            # "game_wrapper": True,
         }
         
         # Enable sound in continuous mode if configured
@@ -57,7 +57,7 @@ class GameAgent:
                     self.pyboy.load_state(file)
         
         # Initialize game wrapper if enabled
-        self.wrapper = self.pyboy.game_wrapper()
+        self.wrapper = self.pyboy.game_wrapper
         if self.wrapper is not None and self.config.ENABLE_WRAPPER:
             self.wrapper.start_game()
         
@@ -538,7 +538,7 @@ class GameAgent:
     def run(self):
         """Run the game agent until completion."""
         # Print game title
-        print(f"Game: {self.pyboy.cartridge_title()}")
+        print(f"Game: {self.pyboy.cartridge_title}")
         
         # Main game loop based on emulation mode
         if self.config.EMULATION_MODE == "turn_based":

@@ -3,7 +3,7 @@ import logging
 import base64
 from io import BytesIO
 from pyboy import PyBoy
-from pyboy import WindowEvent
+from pyboy.utils import WindowEvent
 
 # Define button rules documentation
 button_rules = """Use the following notation for Game Boy buttons: A (A button), B (B button), U (UP), D (DOWN), L (LEFT), R (RIGHT), S (START), E (SELECT).
