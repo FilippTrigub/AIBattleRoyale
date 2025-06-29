@@ -83,6 +83,14 @@ class GameAgent:
         # Initialize chat history
         self.chat_history = [[] for _ in range(len(self.agents))]
 
+        os.mkdir(self.config.AGENT_PROMPT_DIR)
+        for i in range(len(self.agents)):
+            os.mkdir(f"{self.config.AGENT_PROMPT_DIR}/{i}")
+        os.mkdir(self.config.AGENT_CHAT_HISTORY_DIR)
+        for i in range(len(self.agents)):
+            os.mkdir(f"{self.config.AGENT_CHAT_HISTORY_DIR}/{i}")
+
+
     # def _limit_screenshots_in_history(self):
     #     """
     #     Limit the number of screenshots in chat history to MAX_SCREENSHOTS.

@@ -1,3 +1,4 @@
+import datetime
 import json
 import os.path
 import logging
@@ -18,6 +19,7 @@ def load_config(config_file='config.json') -> ConfigClass:
     Returns:
         Configuration object with loaded values or defaults
     """
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y_%m_%dT%H_%M_%SZ")
     # Default configuration values
     default_config = {
         "ROM_PATH": 'red.gb',
@@ -31,6 +33,8 @@ def load_config(config_file='config.json') -> ConfigClass:
         "MAX_HISTORY_MESSAGES": 30,
         "MAX_SCREENSHOTS": 5,  # Maximum number of screenshots to keep in chat history
         "CUSTOM_INSTRUCTIONS": "",  # Custom instructions to inject into the system prompt
+        "AGENT_PROMPT_DIR": f"prompts_{now}",  # Directory for agent prompts
+        "AGENT_CHAT_HISTORY_DIR": f"chat_history_{now}",  # Directory for chat history
 
         # Common model settings - defaults that can be overridden
         "MODEL_DEFAULTS": {
