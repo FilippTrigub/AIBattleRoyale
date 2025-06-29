@@ -10,6 +10,7 @@ import random
 import logging
 import openai
 from dotenv import load_dotenv
+from google import genai
 
 # Load environment variables for API keys
 load_dotenv()
@@ -290,6 +291,7 @@ class SimpleAIInterface:
     def __init__(self):
         # Initialize OpenAI client
         self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # self.client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
         self.model = "gpt-4o"
         
     def send_request(self, system_prompt, messages, tools=None):
@@ -342,7 +344,7 @@ def main():
     agent_prompts = []
     for i in range(2):
         try:
-            with open(f"agent_prompts/{i}", "r") as f:
+            with open(f"agent_prompts/{i}.txt", "r") as f:
                 prompt = f.read()
                 game_state.set_agent_prompt(i, prompt)
                 agent_prompts.append(prompt)
