@@ -35,6 +35,10 @@ class ConfigClass:
     MODEL_DEFAULTS: ModelConfig
     ACTION: ActionConfig
     SUMMARY: SummaryConfig
+
+    NUMBER_PLAYERS: int  # Number of players in the game
+    AGENT_PROMPT_DIR: str # Directory containing agent prompts
+    AGENT_CHAT_HISTORY_DIR: str  # Directory for agent chat history
     
     @staticmethod
     def get_mode_config(mode_name: str, overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

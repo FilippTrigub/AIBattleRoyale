@@ -51,70 +51,77 @@ class AIInterface:
         else:
             raise ValueError(f"Unsupported provider: {provider}. Supported providers: anthropic, openai, gemini, mistral")
     
-    def generate_system_prompt(self) -> str:
+    def generate_system_prompt(self, agent_index) -> str:
         """Generate the system prompt for the AI model."""
-        
-        mode_specific_info = ""
-        if self.config and self.config.EMULATION_MODE == "continuous":
-            mode_specific_info = f"""
-You are operating in continuous mode where the game is running in real-time at 1x speed.
-Your analysis is performed approximately every {self.config.CONTINUOUS_ANALYSIS_INTERVAL} seconds, but this may be slower if you take longer to analyze the game state.
-When you use the send_inputs tool, your inputs will be queued and executed as soon as possible.
-Important timing considerations:
-1. The game continues running between your analyses
-2. There may be a delay between when you see a screenshot and when your inputs execute
-3. Your inputs should be robust and adaptable to changing game states
-4. If possible, use sequences of inputs that make sense even if the game state has changed slightly
 
-Make your decisions based on the current screenshot but be prepared for the game state to have progressed slightly.
-"""
+        with open(os.path.join(self.config.AGENT_PROMPT_DIR, agent_index), 'r') as f:
+            agent_prompt = f.read()
+
+        # mode_specific_info = ""
+#         if self.config and self.config.EMULATION_MODE == "continuous":
+#             mode_specific_info = f"""
+# You are operating in continuous mode where the game is running in real-time at 1x speed.
+# Your analysis is performed approximately every {self.config.CONTINUOUS_ANALYSIS_INTERVAL} seconds, but this may be slower if you take longer to analyze the game state.
+# When you use the send_inputs tool, your inputs will be queued and executed as soon as possible.
+# Important timing considerations:
+# 1. The game continues running between your analyses
+# 2. There may be a delay between when you see a screenshot and when your inputs execute
+# 3. Your inputs should be robust and adaptable to changing game states
+# 4. If possible, use sequences of inputs that make sense even if the game state has changed slightly
+#
+# Make your decisions based on the current screenshot but be prepared for the game state to have progressed slightly.
+# """
         
         # Add information about dynamic thinking if available (mainly for Claude)
-        thinking_info = ""
-        if self.provider == "anthropic" and self.config.ACTION.get("DYNAMIC_THINKING", False):
-            thinking_info = """
-<thinking_control>
-You have access to a tool called 'toggle_thinking' that allows you to control your thinking capability.
-
-When thinking is ON:
-- You can think more deeply about complex problems
-- Your reasoning is generally better and more thorough
-- API calls take longer and use more tokens
-
-When thinking is OFF:
-- Responses are faster and use fewer tokens
-- Better for simple tasks (menu navigation, basic movements)
-- IMPORTANT: Your thinking capabilities will be completely disabled, which may reduce your ability to reason about complex situations
-- CAUTION: Without thinking, you may not recognize when complex reasoning is needed again
-
-RECOMMENDATION: Only turn thinking OFF for very simple, straightforward tasks when you're confident you won't need complex reasoning. Always turn thinking back ON when approaching any decision point or complex situation.
-
-You can toggle thinking on or off at any time using the toggle_thinking tool.
-</thinking_control>
-"""
+        # thinking_info = ""
+#         if self.provider == "anthropic" and self.config.ACTION.get("DYNAMIC_THINKING", False):
+#             thinking_info = """
+# <thinking_control>
+# You have access to a tool called 'toggle_thinking' that allows you to control your thinking capability.
+#
+# When thinking is ON:
+# - You can think more deeply about complex problems
+# - Your reasoning is generally better and more thorough
+# - API calls take longer and use more tokens
+#
+# When thinking is OFF:
+# - Responses are faster and use fewer tokens
+# - Better for simple tasks (menu navigation, basic movements)
+# - IMPORTANT: Your thinking capabilities will be completely disabled, which may reduce your ability to reason about complex situations
+# - CAUTION: Without thinking, you may not recognize when complex reasoning is needed again
+#
+# RECOMMENDATION: Only turn thinking OFF for very simple, straightforward tasks when you're confident you won't need complex reasoning. Always turn thinking back ON when approaching any decision point or complex situation.
+#
+# You can toggle thinking on or off at any time using the toggle_thinking tool.
+# </thinking_control>
+# """
         
         # Add custom instructions from config if available
-        custom_instructions = ""
-        if self.config and hasattr(self.config, 'CUSTOM_INSTRUCTIONS') and self.config.CUSTOM_INSTRUCTIONS:
-            custom_instructions = f"\n{self.config.CUSTOM_INSTRUCTIONS}\n"
+        # custom_instructions = ""
+        # if self.config and hasattr(self.config, 'CUSTOM_INSTRUCTIONS') and self.config.CUSTOM_INSTRUCTIONS:
+        #     custom_instructions = f"\n{self.config.CUSTOM_INSTRUCTIONS}\n"
         
-        return f"""You are an AI agent designed to play video games. You will be given frames from a video game and must use the provided tools to interact with the game. You are also given tools to give yourself a long term memory, as you can only keep a few messages in your short term memory. Your ultimate objective is to defeat the game.
+        return f"""You are an AI agent designed to play video games. 
+You will be given frames from a video game and must use the provided tools to interact with the game. 
+The game you are playing contains you as well as {len(self.config.NUMBER_PLAYERS)} other players, which are also AIs.
+Your goal is to make them surrender to you, and you will win the game when all other players have surrendered.
 
-<notation>
-{button_rules}
-</notation>
-
-{mode_specific_info}
-
-{thinking_info}
+You are given tools to interact with other players.
 
 <custom_instructions>
-{custom_instructions}
+{agent_prompt}
 </custom_instructions>
 
 Always use the tools provided to you to interact with the game.
 """
-    
+
+# {mode_specific_info}
+#
+# {thinking_info}
+# < notation >
+# {button_rules}
+# < / notation >
+
     def _convert_tools_for_openai(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Convert Claude-style tools to OpenAI format."""
         openai_tools = []
