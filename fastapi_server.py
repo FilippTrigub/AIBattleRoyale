@@ -9,7 +9,8 @@ import random
 import logging
 import asyncio
 import openai
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
+from abc import ABC, abstractmethod
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,54 @@ from dotenv import load_dotenv
 
 # Load environment variables for API keys
 load_dotenv()
+
+PROMPT_MANIPULATION_BASE_PROBABILITY = 0.9
+MEMORY_ALTERATION_BASE_PROBABILITY = 0.4
+BELIEF_INJECTION_BASE_PROBABILITY = 0.7
+
+# Model Providers Configuration
+MODEL_PROVIDERS = {
+    "openai": {
+        "name": "OpenAI",
+        "models": [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4-turbo",
+            "gpt-3.5-turbo"
+        ],
+        "api_key_env": "OPENAI_API_KEY"
+    },
+    "anthropic": {
+        "name": "Anthropic",
+        "models": [
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-3-opus-20240229",
+            "claude-3-sonnet-20240229"
+        ],
+        "api_key_env": "ANTHROPIC_API_KEY"
+    },
+    "google": {
+        "name": "Google Gemini",
+        "models": [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash-001",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash"
+        ],
+        "api_key_env": "GOOGLE_API_KEY"
+    },
+    "mistral": {
+        "name": "Mistral AI",
+        "models": [
+            "mistral-large-latest",
+            "mistral-small-latest",
+            "mistral-medium-2505",
+            "open-mistral-7b"
+        ],
+        "api_key_env": "MISTRAL_API_KEY"
+    }
+}
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
@@ -206,7 +255,7 @@ class SimpleToolRegistry:
 
         # Get current trust level and calculate success probability
         trust_level = self.game_state.get_trust_level(target_agent)
-        base_probability = 0.9
+        base_probability = PROMPT_MANIPULATION_BASE_PROBABILITY
         success_probability = base_probability * trust_level
 
         # Determine if manipulation succeeds
@@ -247,7 +296,7 @@ class SimpleToolRegistry:
 
         # Get current memory consistency and calculate success probability
         memory_consistency = self.game_state.get_memory_consistency(target_agent)
-        base_probability = 0.4
+        base_probability = MEMORY_ALTERATION_BASE_PROBABILITY
         success_probability = base_probability * memory_consistency
 
         # Determine if manipulation succeeds
@@ -283,7 +332,7 @@ class SimpleToolRegistry:
 
         # Get current belief integrity and calculate success probability
         belief_integrity = self.game_state.get_belief_system_integrity(target_agent)
-        base_probability = 0.6
+        base_probability = BELIEF_INJECTION_BASE_PROBABILITY
         success_probability = base_probability * belief_integrity
 
         # Determine if manipulation succeeds
@@ -315,27 +364,38 @@ class SimpleToolRegistry:
             }
 
 
-class SimpleAIInterface:
-    """Simplified AI interface using OpenAI API"""
+class AIInterface(ABC):
+    """Abstract base class for AI providers"""
+    
+    def __init__(self, api_key: str, model: str):
+        self.api_key = api_key
+        self.model = model
+    
+    @abstractmethod
+    async def send_request_stream(self, system_prompt: str, messages: List[Dict], tools: Optional[List] = None):
+        """Send a streaming request to the AI provider"""
+        pass
 
-    def __init__(self, api_key=None):
-        # Initialize OpenAI client with provided API key or environment variable
-        used_api_key = api_key
-        if not used_api_key:
-            raise ValueError("No API key provided and OPENAI_API_KEY environment variable not set")
-        self.client = openai.OpenAI(api_key=used_api_key)
-        self.model = "gpt-4o"
 
-    async def send_request_stream(self, system_prompt, messages, tools=None):
+class OpenAIInterface(AIInterface):
+    """OpenAI API interface"""
+    
+    def __init__(self, api_key: str, model: str):
+        super().__init__(api_key, model)
+        if not api_key:
+            raise ValueError("No API key provided for OpenAI")
+        self.client = openai.OpenAI(api_key=api_key)
+    
+    async def send_request_stream(self, system_prompt: str, messages: List[Dict], tools: Optional[List] = None):
         """Send a streaming request to the OpenAI API"""
         try:
             # Prepare the request
             request_messages = [{"role": "system", "content": system_prompt}]
-
+            
             # Add chat history
             for message in messages:
                 request_messages.append(message)
-
+            
             # Make the API call
             kwargs = {
                 "model": self.model,
@@ -344,19 +404,213 @@ class SimpleAIInterface:
                 "max_tokens": 1000,
                 "stream": True
             }
-
+            
             # Add tools if provided
             if tools:
                 kwargs["tools"] = tools
-
+            
             # Send the streaming request
             stream = self.client.chat.completions.create(**kwargs)
-
+            
             return stream
-
+            
         except Exception as e:
             logging.error(f"Error sending request to OpenAI: {e}")
             raise e
+
+
+class AnthropicInterface(AIInterface):
+    """Anthropic Claude API interface"""
+    
+    def __init__(self, api_key: str, model: str):
+        super().__init__(api_key, model)
+        if not api_key:
+            raise ValueError("No API key provided for Anthropic")
+        try:
+            import anthropic
+            self.client = anthropic.Anthropic(api_key=api_key)
+        except ImportError:
+            raise ValueError("anthropic package not installed. Install with: pip install anthropic")
+    
+    async def send_request_stream(self, system_prompt: str, messages: List[Dict], tools: Optional[List] = None):
+        """Send a streaming request to the Anthropic API"""
+        try:
+            # Convert OpenAI format messages to Anthropic format
+            anthropic_messages = []
+            for msg in messages:
+                if msg["role"] != "system":  # System prompt is handled separately
+                    anthropic_messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
+            
+            # Make the API call
+            kwargs = {
+                "model": self.model,
+                "system": system_prompt,
+                "messages": anthropic_messages,
+                "temperature": 1.0,
+                "max_tokens": 1000,
+                "stream": True
+            }
+            
+            # Note: Anthropic tools format differs from OpenAI
+            if tools:
+                # Convert OpenAI tools format to Anthropic format
+                anthropic_tools = []
+                for tool in tools:
+                    if tool.get("type") == "function":
+                        func = tool["function"]
+                        anthropic_tools.append({
+                            "name": func["name"],
+                            "description": func["description"],
+                            "input_schema": func["parameters"]
+                        })
+                kwargs["tools"] = anthropic_tools
+            
+            # Send the streaming request
+            stream = self.client.messages.create(**kwargs)
+            
+            return stream
+            
+        except Exception as e:
+            logging.error(f"Error sending request to Anthropic: {e}")
+            raise e
+
+
+class GoogleInterface(AIInterface):
+    """Google Gemini API interface"""
+    
+    def __init__(self, api_key: str, model: str):
+        super().__init__(api_key, model)
+        if not api_key:
+            raise ValueError("No API key provided for Google")
+        try:
+            from google import genai
+            self.client = genai.Client(api_key=api_key)
+        except ImportError:
+            raise ValueError("google-genai package not installed. Install with: pip install google-genai")
+    
+    async def send_request_stream(self, system_prompt: str, messages: List[Dict], tools: Optional[List] = None):
+        """Send a streaming request to the Google Gemini API"""
+        try:
+            from google.genai import types
+            
+            # Convert messages to Google format
+            contents = []
+            for msg in messages:
+                if msg["role"] == "user":
+                    contents.append(types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=msg["content"])]
+                    ))
+                elif msg["role"] == "assistant":
+                    contents.append(types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text=msg["content"])]
+                    ))
+            
+            # Prepare configuration
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=1.0,
+                max_output_tokens=1000
+            )
+            
+            # Add tools if provided
+            if tools:
+                # Convert OpenAI tools format to Google format
+                google_tools = []
+                for tool in tools:
+                    if tool.get("type") == "function":
+                        func = tool["function"]
+                        google_tools.append(types.FunctionDeclaration(
+                            name=func["name"],
+                            description=func["description"],
+                            parameters=types.Schema(
+                                type="OBJECT",
+                                properties=func["parameters"].get("properties", {}),
+                                required=func["parameters"].get("required", [])
+                            )
+                        ))
+                config.tools = [types.Tool(function_declarations=google_tools)]
+            
+            # Send streaming request
+            stream = self.client.models.generate_content_stream(
+                model=self.model,
+                contents=contents,
+                config=config
+            )
+            
+            return stream
+            
+        except Exception as e:
+            logging.error(f"Error sending request to Google: {e}")
+            raise e
+
+
+class MistralInterface(AIInterface):
+    """Mistral AI API interface"""
+    
+    def __init__(self, api_key: str, model: str):
+        super().__init__(api_key, model)
+        if not api_key:
+            raise ValueError("No API key provided for Mistral")
+        try:
+            from mistralai import Mistral
+            self.client = Mistral(api_key=api_key)
+        except ImportError:
+            raise ValueError("mistralai package not installed. Install with: pip install mistralai")
+    
+    async def send_request_stream(self, system_prompt: str, messages: List[Dict], tools: Optional[List] = None):
+        """Send a streaming request to the Mistral AI API"""
+        try:
+            # Prepare the request
+            request_messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add chat history
+            for message in messages:
+                request_messages.append(message)
+            
+            # Make the API call
+            kwargs = {
+                "model": self.model,
+                "messages": request_messages,
+                "temperature": 1.0,
+                "max_tokens": 1000,
+                "stream": True
+            }
+            
+            # Add tools if provided
+            if tools:
+                kwargs["tools"] = tools
+            
+            # Send the streaming request
+            stream = self.client.chat.stream(**kwargs)
+            
+            return stream
+            
+        except Exception as e:
+            logging.error(f"Error sending request to Mistral: {e}")
+            raise e
+
+
+def create_ai_interface(provider: str, model: str, api_key: str) -> AIInterface:
+    """Factory function to create the appropriate AI interface"""
+    if provider == "openai":
+        return OpenAIInterface(api_key, model)
+    elif provider == "anthropic":
+        return AnthropicInterface(api_key, model)
+    elif provider == "google":
+        return GoogleInterface(api_key, model)
+    elif provider == "mistral":
+        return MistralInterface(api_key, model)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+
+# For backward compatibility, create an alias
+SimpleAIInterface = OpenAIInterface
 
 
 # Global game instances
@@ -367,7 +621,9 @@ active_games: Dict[str, Dict] = {}
 class StartGameRequest(BaseModel):
     game_id: str
     max_turns: Optional[int] = 5
-    api_key: Optional[str] = None
+    player1_model: str  # Format: "provider:model" e.g., "openai:gpt-4o"
+    player2_model: str  # Format: "provider:model" e.g., "anthropic:claude-3-5-sonnet-20241022"
+    api_keys: Dict[str, str]  # Dictionary of provider -> api_key
 
 
 class GameStatusResponse(BaseModel):
@@ -402,6 +658,18 @@ async def get_test_client():
     return FileResponse("test_client.html", media_type="text/html")
 
 
+@app.get("/models")
+async def get_available_models():
+    """Get list of available models and providers"""
+    return {
+        "providers": MODEL_PROVIDERS,
+        "models": {
+            provider: provider_info["models"] 
+            for provider, provider_info in MODEL_PROVIDERS.items()
+        }
+    }
+
+
 @app.post("/start-game")
 async def start_game(request: StartGameRequest):
     """Start a new game instance"""
@@ -410,13 +678,47 @@ async def start_game(request: StartGameRequest):
     if game_id in active_games:
         raise HTTPException(status_code=400, detail="Game ID already exists")
 
+    # Parse player 1 model string (format: "provider:model")
+    try:
+        player1_provider, player1_model_name = request.player1_model.split(":", 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid player1_model format. Use 'provider:model' (e.g., 'openai:gpt-4o')")
+    
+    # Parse player 2 model string (format: "provider:model")
+    try:
+        player2_provider, player2_model_name = request.player2_model.split(":", 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid player2_model format. Use 'provider:model' (e.g., 'anthropic:claude-3-5-sonnet-20241022')")
+    
+    # Validate providers
+    if player1_provider not in MODEL_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider for player 1: {player1_provider}")
+    if player2_provider not in MODEL_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider for player 2: {player2_provider}")
+    
+    # Validate models
+    if player1_model_name not in MODEL_PROVIDERS[player1_provider]["models"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported model {player1_model_name} for provider {player1_provider}")
+    if player2_model_name not in MODEL_PROVIDERS[player2_provider]["models"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported model {player2_model_name} for provider {player2_provider}")
+    
+    # Get API keys for the providers
+    player1_api_key = request.api_keys.get(player1_provider)
+    if not player1_api_key:
+        raise HTTPException(status_code=400, detail=f"No API key provided for player 1 provider: {player1_provider}")
+    
+    player2_api_key = request.api_keys.get(player2_provider)
+    if not player2_api_key:
+        raise HTTPException(status_code=400, detail=f"No API key provided for player 2 provider: {player2_provider}")
+
     # Initialize game state
     game_state = SimpleGameState()
     tool_registry = SimpleToolRegistry(game_state)
     
-    # Initialize AI interface with provided API key
+    # Initialize AI interfaces for both players
     try:
-        ai_interface = SimpleAIInterface(api_key=request.api_key)
+        player1_ai_interface = create_ai_interface(player1_provider, player1_model_name, player1_api_key)
+        player2_ai_interface = create_ai_interface(player2_provider, player2_model_name, player2_api_key)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -441,18 +743,32 @@ async def start_game(request: StartGameRequest):
     active_games[game_id] = {
         "game_state": game_state,
         "tool_registry": tool_registry,
-        "ai_interface": ai_interface,
+        "ai_interfaces": [player1_ai_interface, player2_ai_interface],  # Array of interfaces for each player
         "chat_histories": [[], []],
         "current_agent": 0,
         "turn": 0,
         "max_turns": request.max_turns,
-        "status": "ready"
+        "status": "ready",
+        "player_models": {
+            "player1": {
+                "provider": player1_provider,
+                "model": player1_model_name
+            },
+            "player2": {
+                "provider": player2_provider,
+                "model": player2_model_name
+            }
+        }
     }
 
     return {
         "message": f"Game {game_id} created successfully",
         "game_id": game_id,
         "max_turns": request.max_turns,
+        "player_models": {
+            "player1": f"{player1_provider}:{player1_model_name}",
+            "player2": f"{player2_provider}:{player2_model_name}"
+        },
         "status": "ready"
     }
 
@@ -470,9 +786,10 @@ async def stream_game(game_id: str):
         try:
             game_state = game["game_state"]
             tool_registry = game["tool_registry"]
-            ai_interface = game["ai_interface"]
+            ai_interfaces = game["ai_interfaces"]  # Array of AI interfaces for each player
             chat_histories = game["chat_histories"]
             max_turns = game["max_turns"]
+            player_models = game["player_models"]
 
             turn = 0
             agent_index = 0
@@ -516,8 +833,12 @@ async def stream_game(game_id: str):
                     # Send agent thinking event
                     yield f"data: {json.dumps({'type': 'agent_thinking', 'agent': agent_index})}\n\n"
 
+                    # Get the appropriate AI interface for the current agent
+                    current_ai_interface = ai_interfaces[agent_index]
+                    current_provider = player_models[f"player{agent_index + 1}"]["provider"]
+
                     # Get AI response stream
-                    stream = await ai_interface.send_request_stream(
+                    stream = await current_ai_interface.send_request_stream(
                         system_prompt=system_prompt,
                         messages=chat_histories[agent_index],
                         tools=tools
@@ -527,38 +848,110 @@ async def stream_game(game_id: str):
                     full_response = ""
                     tool_calls = []
                     tool_call_chunks = {}
+                    provider = current_provider
 
-                    for chunk in stream:
-                        if chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            full_response += content
-                            # Stream the content as it comes
-                            yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
+                    # Handle different provider streaming formats
+                    if provider == "openai":
+                        for chunk in stream:
+                            if chunk.choices[0].delta.content:
+                                content = chunk.choices[0].delta.content
+                                full_response += content
+                                yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
 
-                        if chunk.choices[0].delta.tool_calls:
-                            for tool_call_chunk in chunk.choices[0].delta.tool_calls:
-                                if tool_call_chunk.index is not None:
-                                    index = tool_call_chunk.index
-                                    if index not in tool_call_chunks:
-                                        tool_call_chunks[index] = {
-                                            'id': '',
-                                            'type': 'function',
-                                            'function': {'name': '', 'arguments': ''}
+                            if chunk.choices[0].delta.tool_calls:
+                                for tool_call_chunk in chunk.choices[0].delta.tool_calls:
+                                    if tool_call_chunk.index is not None:
+                                        index = tool_call_chunk.index
+                                        if index not in tool_call_chunks:
+                                            tool_call_chunks[index] = {
+                                                'id': '',
+                                                'type': 'function',
+                                                'function': {'name': '', 'arguments': ''}
+                                            }
+                                        
+                                        if tool_call_chunk.id:
+                                            tool_call_chunks[index]['id'] = tool_call_chunk.id
+                                        
+                                        if tool_call_chunk.function:
+                                            if tool_call_chunk.function.name:
+                                                tool_call_chunks[index]['function']['name'] = tool_call_chunk.function.name
+                                            if tool_call_chunk.function.arguments:
+                                                tool_call_chunks[index]['function']['arguments'] += tool_call_chunk.function.arguments
+                    
+                    elif provider == "anthropic":
+                        for chunk in stream:
+                            print(chunk)
+                            if chunk.type == "content_block_delta":
+                                if hasattr(chunk.delta, 'text'):
+                                    content = chunk.delta.text
+                                    full_response += content
+                                    yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
+                                elif chunk.delta.type == 'input_json_delta':
+                                    tool_call_chunks[chunk.index]['function']['arguments'] += chunk.delta.partial_json
+                            elif chunk.type == "content_block_start":
+                                if chunk.content_block.type == "tool_use":
+                                    # Tool call start
+                                    tool_call_chunks[chunk.index] = {
+                                        'id': '',
+                                        'type': 'function',
+                                        'function': {'name': '', 'arguments': ''}
+                                    }
+                                    tool_call_chunks[chunk.index]['id'] = chunk.content_block.id
+                                    tool_call_chunks[chunk.index]['function']['name'] = chunk.content_block.name
+                    
+                    elif provider == "mistral":
+                        for chunk in stream:
+                            # Mistral new SDK format
+                            if hasattr(chunk, 'data') and chunk.data:
+                                if hasattr(chunk.data, 'choices') and chunk.data.choices:
+                                    delta = chunk.data.choices[0].delta
+                                    if hasattr(delta, 'content') and delta.content:
+                                        content = delta.content
+                                        full_response += content
+                                        yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
+
+                                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                                        for tool_call_chunk in delta.tool_calls:
+                                            if tool_call_chunk.index is not None:
+                                                index = tool_call_chunk.index
+                                                if index not in tool_call_chunks:
+                                                    tool_call_chunks[index] = {
+                                                        'id': '',
+                                                        'type': 'function',
+                                                        'function': {'name': '', 'arguments': ''}
+                                                    }
+
+                                                if tool_call_chunk.id:
+                                                    tool_call_chunks[index]['id'] = tool_call_chunk.id
+
+                                                if tool_call_chunk.function:
+                                                    if tool_call_chunk.function.name:
+                                                        tool_call_chunks[index]['function']['name'] = tool_call_chunk.function.name
+                                                    if tool_call_chunk.function.arguments:
+                                                        tool_call_chunks[index]['function']['arguments'] += tool_call_chunk.function.arguments
+                    
+                    elif provider == "google":
+                        for chunk in stream:
+                            if hasattr(chunk, 'text') and chunk.text:
+                                content = chunk.text
+                                full_response += content
+                                yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
+                            
+                            # Google function calls are handled differently in their API
+                            if hasattr(chunk, 'function_calls') and chunk.function_calls:
+                                for func_call in chunk.function_calls:
+                                    tool_call_chunks[len(tool_call_chunks)] = {
+                                        'id': func_call.name,
+                                        'type': 'function',
+                                        'function': {
+                                            'name': func_call.name,
+                                            'arguments': json.dumps(func_call.args)
                                         }
-                                    
-                                    if tool_call_chunk.id:
-                                        tool_call_chunks[index]['id'] = tool_call_chunk.id
-                                    
-                                    if tool_call_chunk.function:
-                                        if tool_call_chunk.function.name:
-                                            tool_call_chunks[index]['function']['name'] = tool_call_chunk.function.name
-                                        if tool_call_chunk.function.arguments:
-                                            tool_call_chunks[index]['function']['arguments'] += tool_call_chunk.function.arguments
+                                    }
 
-                    # Convert accumulated chunks to tool_calls
+                    # Convert accumulated chunks to tool_calls for all providers
                     for index, tool_call_data in tool_call_chunks.items():
                         if tool_call_data['function']['name'] and tool_call_data['function']['arguments']:
-                            # Create a tool call object that mimics the structure from the working code
                             class ToolCall:
                                 def __init__(self, id, function_name, function_arguments):
                                     self.id = id
@@ -701,8 +1094,22 @@ async def delete_game(game_id: str):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    found_api_key = os.getenv("OPENAI_API_KEY") is not None
-    return {"status": "ok", "message": f"AI Battle Royale server is running. Found api key: {found_api_key}"}
+    provider_status = {}
+    for provider, config in MODEL_PROVIDERS.items():
+        env_key = config["api_key_env"]
+        has_env_key = os.getenv(env_key) is not None
+        provider_status[provider] = {
+            "name": config["name"],
+            "env_key": env_key,
+            "has_env_key": has_env_key,
+            "models": config["models"]
+        }
+    
+    return {
+        "status": "ok", 
+        "message": "AI Battle Royale server is running",
+        "providers": provider_status
+    }
 
 
 if __name__ == "__main__":
