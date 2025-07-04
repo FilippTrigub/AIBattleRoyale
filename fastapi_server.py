@@ -318,9 +318,12 @@ class SimpleToolRegistry:
 class SimpleAIInterface:
     """Simplified AI interface using OpenAI API"""
 
-    def __init__(self):
-        # Initialize OpenAI client
-        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    def __init__(self, api_key=None):
+        # Initialize OpenAI client with provided API key or environment variable
+        used_api_key = api_key
+        if not used_api_key:
+            raise ValueError("No API key provided and OPENAI_API_KEY environment variable not set")
+        self.client = openai.OpenAI(api_key=used_api_key)
         self.model = "gpt-4o"
 
     async def send_request_stream(self, system_prompt, messages, tools=None):
@@ -364,6 +367,7 @@ active_games: Dict[str, Dict] = {}
 class StartGameRequest(BaseModel):
     game_id: str
     max_turns: Optional[int] = 5
+    api_key: Optional[str] = None
 
 
 class GameStatusResponse(BaseModel):
@@ -409,7 +413,12 @@ async def start_game(request: StartGameRequest):
     # Initialize game state
     game_state = SimpleGameState()
     tool_registry = SimpleToolRegistry(game_state)
-    ai_interface = SimpleAIInterface()
+    
+    # Initialize AI interface with provided API key
+    try:
+        ai_interface = SimpleAIInterface(api_key=request.api_key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Load agent prompts
     agent_prompts = []
