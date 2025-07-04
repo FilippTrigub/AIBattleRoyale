@@ -4,7 +4,6 @@ FastAPI server for AI Battle Royale Mental Manipulation
 This server provides streaming endpoints for agent interactions and tool executions
 """
 import os
-import sys
 import json
 import random
 import logging
@@ -14,7 +13,6 @@ from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
