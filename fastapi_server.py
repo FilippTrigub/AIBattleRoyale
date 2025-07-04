@@ -876,19 +876,27 @@ async def stream_game(game_id: str):
                     
                     elif provider == "anthropic":
                         for chunk in stream:
+                            print(chunk)
                             if chunk.type == "content_block_delta":
                                 if hasattr(chunk.delta, 'text'):
                                     content = chunk.delta.text
                                     full_response += content
                                     yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
+                                elif chunk.delta.type == 'input_json_delta':
+                                    tool_call_chunks[chunk.index]['function']['arguments'] += chunk.delta.partial_json
                             elif chunk.type == "content_block_start":
                                 if chunk.content_block.type == "tool_use":
                                     # Tool call start
-                                    pass
+                                    tool_call_chunks[chunk.index] = {
+                                        'id': '',
+                                        'type': 'function',
+                                        'function': {'name': '', 'arguments': ''}
+                                    }
+                                    tool_call_chunks[chunk.index]['id'] = chunk.content_block.id
+                                    tool_call_chunks[chunk.index]['function']['name'] = chunk.content_block.name
                     
                     elif provider == "mistral":
                         for chunk in stream:
-                            print(f"Received chunk: {chunk}")
                             # Mistral new SDK format
                             if hasattr(chunk, 'data') and chunk.data:
                                 if hasattr(chunk.data, 'choices') and chunk.data.choices:
