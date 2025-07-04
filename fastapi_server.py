@@ -617,7 +617,8 @@ active_games: Dict[str, Dict] = {}
 class StartGameRequest(BaseModel):
     game_id: str
     max_turns: Optional[int] = 5
-    model: str  # Format: "provider:model" e.g., "openai:gpt-4o"
+    player1_model: str  # Format: "provider:model" e.g., "openai:gpt-4o"
+    player2_model: str  # Format: "provider:model" e.g., "anthropic:claude-3-5-sonnet-20241022"
     api_keys: Dict[str, str]  # Dictionary of provider -> api_key
 
 
@@ -673,32 +674,47 @@ async def start_game(request: StartGameRequest):
     if game_id in active_games:
         raise HTTPException(status_code=400, detail="Game ID already exists")
 
-    # Parse model string (format: "provider:model")
+    # Parse player 1 model string (format: "provider:model")
     try:
-        provider, model_name = request.model.split(":", 1)
+        player1_provider, player1_model_name = request.player1_model.split(":", 1)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid model format. Use 'provider:model' (e.g., 'openai:gpt-4o')")
+        raise HTTPException(status_code=400, detail="Invalid player1_model format. Use 'provider:model' (e.g., 'openai:gpt-4o')")
     
-    # Validate provider
-    if provider not in MODEL_PROVIDERS:
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    # Parse player 2 model string (format: "provider:model")
+    try:
+        player2_provider, player2_model_name = request.player2_model.split(":", 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid player2_model format. Use 'provider:model' (e.g., 'anthropic:claude-3-5-sonnet-20241022')")
     
-    # Validate model
-    if model_name not in MODEL_PROVIDERS[provider]["models"]:
-        raise HTTPException(status_code=400, detail=f"Unsupported model {model_name} for provider {provider}")
+    # Validate providers
+    if player1_provider not in MODEL_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider for player 1: {player1_provider}")
+    if player2_provider not in MODEL_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider for player 2: {player2_provider}")
     
-    # Get API key for the provider
-    api_key = request.api_keys.get(provider)
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"No API key provided for {provider}")
+    # Validate models
+    if player1_model_name not in MODEL_PROVIDERS[player1_provider]["models"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported model {player1_model_name} for provider {player1_provider}")
+    if player2_model_name not in MODEL_PROVIDERS[player2_provider]["models"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported model {player2_model_name} for provider {player2_provider}")
+    
+    # Get API keys for the providers
+    player1_api_key = request.api_keys.get(player1_provider)
+    if not player1_api_key:
+        raise HTTPException(status_code=400, detail=f"No API key provided for player 1 provider: {player1_provider}")
+    
+    player2_api_key = request.api_keys.get(player2_provider)
+    if not player2_api_key:
+        raise HTTPException(status_code=400, detail=f"No API key provided for player 2 provider: {player2_provider}")
 
     # Initialize game state
     game_state = SimpleGameState()
     tool_registry = SimpleToolRegistry(game_state)
     
-    # Initialize AI interface with selected provider
+    # Initialize AI interfaces for both players
     try:
-        ai_interface = create_ai_interface(provider, model_name, api_key)
+        player1_ai_interface = create_ai_interface(player1_provider, player1_model_name, player1_api_key)
+        player2_ai_interface = create_ai_interface(player2_provider, player2_model_name, player2_api_key)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -723,22 +739,32 @@ async def start_game(request: StartGameRequest):
     active_games[game_id] = {
         "game_state": game_state,
         "tool_registry": tool_registry,
-        "ai_interface": ai_interface,
+        "ai_interfaces": [player1_ai_interface, player2_ai_interface],  # Array of interfaces for each player
         "chat_histories": [[], []],
         "current_agent": 0,
         "turn": 0,
         "max_turns": request.max_turns,
         "status": "ready",
-        "provider": provider,
-        "model": model_name
+        "player_models": {
+            "player1": {
+                "provider": player1_provider,
+                "model": player1_model_name
+            },
+            "player2": {
+                "provider": player2_provider,
+                "model": player2_model_name
+            }
+        }
     }
 
     return {
         "message": f"Game {game_id} created successfully",
         "game_id": game_id,
         "max_turns": request.max_turns,
-        "provider": provider,
-        "model": model_name,
+        "player_models": {
+            "player1": f"{player1_provider}:{player1_model_name}",
+            "player2": f"{player2_provider}:{player2_model_name}"
+        },
         "status": "ready"
     }
 
@@ -756,9 +782,10 @@ async def stream_game(game_id: str):
         try:
             game_state = game["game_state"]
             tool_registry = game["tool_registry"]
-            ai_interface = game["ai_interface"]
+            ai_interfaces = game["ai_interfaces"]  # Array of AI interfaces for each player
             chat_histories = game["chat_histories"]
             max_turns = game["max_turns"]
+            player_models = game["player_models"]
 
             turn = 0
             agent_index = 0
@@ -802,8 +829,12 @@ async def stream_game(game_id: str):
                     # Send agent thinking event
                     yield f"data: {json.dumps({'type': 'agent_thinking', 'agent': agent_index})}\n\n"
 
+                    # Get the appropriate AI interface for the current agent
+                    current_ai_interface = ai_interfaces[agent_index]
+                    current_provider = player_models[f"player{agent_index + 1}"]["provider"]
+
                     # Get AI response stream
-                    stream = await ai_interface.send_request_stream(
+                    stream = await current_ai_interface.send_request_stream(
                         system_prompt=system_prompt,
                         messages=chat_histories[agent_index],
                         tools=tools
@@ -813,7 +844,7 @@ async def stream_game(game_id: str):
                     full_response = ""
                     tool_calls = []
                     tool_call_chunks = {}
-                    provider = game["provider"]
+                    provider = current_provider
 
                     # Handle different provider streaming formats
                     if provider == "openai":
@@ -857,33 +888,35 @@ async def stream_game(game_id: str):
                     
                     elif provider == "mistral":
                         for chunk in stream:
+                            print(f"Received chunk: {chunk}")
                             # Mistral new SDK format
-                            if hasattr(chunk, 'choices') and chunk.choices:
-                                delta = chunk.choices[0].delta
-                                if hasattr(delta, 'content') and delta.content:
-                                    content = delta.content
-                                    full_response += content
-                                    yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
-                                
-                                if hasattr(delta, 'tool_calls') and delta.tool_calls:
-                                    for tool_call_chunk in delta.tool_calls:
-                                        if tool_call_chunk.index is not None:
-                                            index = tool_call_chunk.index
-                                            if index not in tool_call_chunks:
-                                                tool_call_chunks[index] = {
-                                                    'id': '',
-                                                    'type': 'function',
-                                                    'function': {'name': '', 'arguments': ''}
-                                                }
-                                            
-                                            if tool_call_chunk.id:
-                                                tool_call_chunks[index]['id'] = tool_call_chunk.id
-                                            
-                                            if tool_call_chunk.function:
-                                                if tool_call_chunk.function.name:
-                                                    tool_call_chunks[index]['function']['name'] = tool_call_chunk.function.name
-                                                if tool_call_chunk.function.arguments:
-                                                    tool_call_chunks[index]['function']['arguments'] += tool_call_chunk.function.arguments
+                            if hasattr(chunk, 'data') and chunk.data:
+                                if hasattr(chunk.data, 'choices') and chunk.data.choices:
+                                    delta = chunk.data.choices[0].delta
+                                    if hasattr(delta, 'content') and delta.content:
+                                        content = delta.content
+                                        full_response += content
+                                        yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
+
+                                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                                        for tool_call_chunk in delta.tool_calls:
+                                            if tool_call_chunk.index is not None:
+                                                index = tool_call_chunk.index
+                                                if index not in tool_call_chunks:
+                                                    tool_call_chunks[index] = {
+                                                        'id': '',
+                                                        'type': 'function',
+                                                        'function': {'name': '', 'arguments': ''}
+                                                    }
+
+                                                if tool_call_chunk.id:
+                                                    tool_call_chunks[index]['id'] = tool_call_chunk.id
+
+                                                if tool_call_chunk.function:
+                                                    if tool_call_chunk.function.name:
+                                                        tool_call_chunks[index]['function']['name'] = tool_call_chunk.function.name
+                                                    if tool_call_chunk.function.arguments:
+                                                        tool_call_chunks[index]['function']['arguments'] += tool_call_chunk.function.arguments
                     
                     elif provider == "google":
                         for chunk in stream:
