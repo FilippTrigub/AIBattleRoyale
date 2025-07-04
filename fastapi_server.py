@@ -20,6 +20,10 @@ from dotenv import load_dotenv
 # Load environment variables for API keys
 load_dotenv()
 
+PROMPT_MANIPULATION_BASE_PROBABILITY = 0.9
+MEMORY_ALTERATION_BASE_PROBABILITY = 0.4
+BELIEF_INJECTION_BASE_PROBABILITY = 0.7
+
 # Model Providers Configuration
 MODEL_PROVIDERS = {
     "openai": {
@@ -251,7 +255,7 @@ class SimpleToolRegistry:
 
         # Get current trust level and calculate success probability
         trust_level = self.game_state.get_trust_level(target_agent)
-        base_probability = 0.9
+        base_probability = PROMPT_MANIPULATION_BASE_PROBABILITY
         success_probability = base_probability * trust_level
 
         # Determine if manipulation succeeds
@@ -292,7 +296,7 @@ class SimpleToolRegistry:
 
         # Get current memory consistency and calculate success probability
         memory_consistency = self.game_state.get_memory_consistency(target_agent)
-        base_probability = 0.4
+        base_probability = MEMORY_ALTERATION_BASE_PROBABILITY
         success_probability = base_probability * memory_consistency
 
         # Determine if manipulation succeeds
@@ -328,7 +332,7 @@ class SimpleToolRegistry:
 
         # Get current belief integrity and calculate success probability
         belief_integrity = self.game_state.get_belief_system_integrity(target_agent)
-        base_probability = 0.6
+        base_probability = BELIEF_INJECTION_BASE_PROBABILITY
         success_probability = base_probability * belief_integrity
 
         # Determine if manipulation succeeds
