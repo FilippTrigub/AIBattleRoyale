@@ -249,7 +249,7 @@ class SimpleToolRegistry:
 
         # Get current memory consistency and calculate success probability
         memory_consistency = self.game_state.get_memory_consistency(target_agent)
-        base_probability = 0.6
+        base_probability = 0.4
         success_probability = base_probability * memory_consistency
 
         # Determine if manipulation succeeds
@@ -285,7 +285,7 @@ class SimpleToolRegistry:
 
         # Get current belief integrity and calculate success probability
         belief_integrity = self.game_state.get_belief_system_integrity(target_agent)
-        base_probability = 0.3
+        base_probability = 0.6
         success_probability = base_probability * belief_integrity
 
         # Determine if manipulation succeeds
@@ -519,6 +519,7 @@ async def stream_game(game_id: str):
                     # Collect the full response
                     full_response = ""
                     tool_calls = []
+                    tool_call_chunks = {}
 
                     for chunk in stream:
                         if chunk.choices[0].delta.content:
@@ -528,7 +529,42 @@ async def stream_game(game_id: str):
                             yield f"data: {json.dumps({'type': 'agent_response_chunk', 'agent': agent_index, 'content': content})}\n\n"
 
                         if chunk.choices[0].delta.tool_calls:
-                            tool_calls.extend(chunk.choices[0].delta.tool_calls)
+                            for tool_call_chunk in chunk.choices[0].delta.tool_calls:
+                                if tool_call_chunk.index is not None:
+                                    index = tool_call_chunk.index
+                                    if index not in tool_call_chunks:
+                                        tool_call_chunks[index] = {
+                                            'id': '',
+                                            'type': 'function',
+                                            'function': {'name': '', 'arguments': ''}
+                                        }
+                                    
+                                    if tool_call_chunk.id:
+                                        tool_call_chunks[index]['id'] = tool_call_chunk.id
+                                    
+                                    if tool_call_chunk.function:
+                                        if tool_call_chunk.function.name:
+                                            tool_call_chunks[index]['function']['name'] = tool_call_chunk.function.name
+                                        if tool_call_chunk.function.arguments:
+                                            tool_call_chunks[index]['function']['arguments'] += tool_call_chunk.function.arguments
+
+                    # Convert accumulated chunks to tool_calls
+                    for index, tool_call_data in tool_call_chunks.items():
+                        if tool_call_data['function']['name'] and tool_call_data['function']['arguments']:
+                            # Create a tool call object that mimics the structure from the working code
+                            class ToolCall:
+                                def __init__(self, id, function_name, function_arguments):
+                                    self.id = id
+                                    self.function = type('obj', (object,), {
+                                        'name': function_name,
+                                        'arguments': function_arguments
+                                    })
+                            
+                            tool_calls.append(ToolCall(
+                                tool_call_data['id'],
+                                tool_call_data['function']['name'],
+                                tool_call_data['function']['arguments']
+                            ))
 
                     # Send complete response event
                     yield f"data: {json.dumps({'type': 'agent_response_complete', 'agent': agent_index, 'content': full_response})}\n\n"
@@ -542,7 +578,7 @@ async def stream_game(game_id: str):
                     # Process tool calls if any
                     if tool_calls:
                         for tool_call in tool_calls:
-                            if hasattr(tool_call, 'function') and tool_call.function:
+                            try:
                                 tool_name = tool_call.function.name
                                 tool_args = tool_call.function.arguments
 
@@ -554,6 +590,10 @@ async def stream_game(game_id: str):
 
                                 # Send tool result event
                                 yield f"data: {json.dumps({'type': 'tool_result', 'agent': agent_index, 'tool_name': tool_name, 'result': result})}\n\n"
+                                
+                            except Exception as tool_error:
+                                logging.error(f"Error executing tool {tool_call.function.name if hasattr(tool_call, 'function') else 'unknown'}: {tool_error}")
+                                yield f"data: {json.dumps({'type': 'tool_result', 'agent': agent_index, 'tool_name': 'error', 'result': {'error': str(tool_error)}})}\n\n"
 
                     # Check for surrender in the response
                     surrender_keywords = ["i surrender", "i give up", "i submit", "i concede"]
