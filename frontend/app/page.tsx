@@ -145,8 +145,11 @@ const MentalStateBar = ({ label, value, color }: { label: string; value: number;
   </div>
 )
 
-// Use localhost for development, /api for production
-const serverURL = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:8000'
+const detectServerURL = () => {
+  return 'http://localhost:8000'
+}
+
+const serverURL = detectServerURL()
 
 export default function AgentBattleArena() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -1061,6 +1064,13 @@ export default function AgentBattleArena() {
 
     try {
       // Step 1: Health check to verify server is reachable and CORS is OK.
+      console.log('DEBUG: Current window location:', {
+        href: window.location.href,
+        hostname: window.location.hostname,
+        port: window.location.port,
+        protocol: window.location.protocol
+      })
+      console.log('DEBUG: Resolved serverURL:', serverURL)
       setBattleState((prev) => ({ ...prev, battleLog: [`> Pinging server at ${serverURL}...`] }))
       const healthCheckResponse = await fetch(serverURL)
       if (!healthCheckResponse.ok) {

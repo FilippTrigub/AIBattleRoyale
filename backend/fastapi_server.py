@@ -1094,21 +1094,10 @@ async def delete_game(game_id: str):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    provider_status = {}
-    for provider, config in MODEL_PROVIDERS.items():
-        env_key = config["api_key_env"]
-        has_env_key = os.getenv(env_key) is not None
-        provider_status[provider] = {
-            "name": config["name"],
-            "env_key": env_key,
-            "has_env_key": has_env_key,
-            "models": config["models"]
-        }
-    
     return {
         "status": "ok", 
         "message": "AI Battle Royale server is running",
-        "providers": provider_status
+        "note": "API keys are provided by frontend, not environment variables"
     }
 
 
