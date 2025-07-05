@@ -146,7 +146,20 @@ const MentalStateBar = ({ label, value, color }: { label: string; value: number;
 )
 
 const detectServerURL = () => {
-  return 'http://localhost:8000'
+  // In development, check if we're running on port 3000 (Next.js dev server)
+  // In production (Docker), use nginx proxy route
+  if (typeof window !== 'undefined') {
+    const isDevMode = window.location.port === '3000' && window.location.hostname === 'localhost'
+    if (isDevMode) {
+      // Development: connect directly to backend
+      return 'http://localhost:8000'
+    } else {
+      // Production/Docker: use nginx proxy
+      return '/api'
+    }
+  }
+  // Fallback for SSR
+  return '/api'
 }
 
 const serverURL = detectServerURL()
