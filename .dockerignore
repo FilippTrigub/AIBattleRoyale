@@ -1,44 +1,32 @@
-# Docker ignore file for AI Battle Royale
-# Ignore Python cache and virtual environments
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# Exclude development files and dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Virtual environments
-venv/
-env/
-ENV/
+# Next.js build outputs
+frontend/.next/
+frontend/out/
+frontend/*.log
 
-# Environment variables (security)
-env.local
-.env.production
+# Python cache
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.Python
+backend/pip-log.txt
+backend/pip-delete-this-directory.txt
 
-# IDE files
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS files
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -47,41 +35,28 @@ env.local
 ehthumbs.db
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
-# Database files
-*.db
-*.sqlite3
-
-# Temporary files
-*.tmp
-*.temp
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Git
-.git/
+.git
 .gitignore
 
-# Docker files (don't include in build context)
+# Docker
 Dockerfile
-docker-compose.yml
 .dockerignore
 
-# Documentation that's not needed in container
-*.md
-docs/
+# Logs
+*.log
 
-# Scripts that are for local development
-start_server.bat
-*.bat
-*.sh
+# Testing
+coverage/
+.nyc_output/
 
-# Testing files
-test_*
-tests/
-
-# Coverage reports
-htmlcov/
-.coverage
-.pytest_cache/
+# Temporary files
+tmp/
+temp/

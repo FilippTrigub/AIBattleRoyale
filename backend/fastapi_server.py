@@ -726,7 +726,7 @@ async def start_game(request: StartGameRequest):
     agent_prompts = []
     for i in range(2):
         try:
-            with open(f"agent_prompts/{i}.txt", "r") as f:
+            with open(f"backend/agent_prompts/{i}.txt", "r") as f:
                 prompt = f.read()
                 game_state.set_agent_prompt(i, prompt)
                 agent_prompts.append(prompt)
@@ -1115,4 +1115,4 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -1,201 +1,201 @@
-# AI Battle Royale - Mental Manipulation Arena
+# AI Battle Royale - Docker Deployment
 
-A FastAPI-based streaming server for AI agent mental manipulation battles. Watch as AI agents attempt to psychologically manipulate each other using various mental warfare tools.
-
-## Features
-
-- **Real-time Streaming**: Live updates of agent responses and tool executions
-- **Mental State Tracking**: Monitor trust levels, memory consistency, and belief system integrity
-- **Interactive Web Interface**: Beautiful cyberpunk-themed client interface
-- **Tool Execution**: Agents can use prompt manipulation, memory alteration, and belief injection
-- **Multiple Victory Conditions**: Surrender, cognitive collapse, or strategic dominance
-
-## Setup Instructions
-
-### 1. Prerequisites
-- Python 3.8 or higher
-- OpenAI API key
-
-### 2. Installation
-
-1. **Clone or download the project files**
-
-2. **Set up your API key**:
-   - Copy `.env.template` to `.env`
-   - Edit `.env` and add your OpenAI API key:
-     ```
-     OPENAI_API_KEY=your_actual_api_key_here
-     ```
-
-3. **Run the startup script**:
-   ```bash
-   # Windows
-   start_server.bat
-   
-   # Or manually:
-   python -m venv venv
-   venv\Scripts\activate  # On Windows
-   # source venv/bin/activate  # On Linux/Mac
-   pip install -r requirements.txt
-   python fastapi_server.py
-   ```
-
-### 3. Access the Application
-
-1. **Open your browser** and go to: `http://localhost:8000`
-2. **Open the test client**: Open `test_client.html` in your browser
-3. **Start a battle**: Enter a game ID and click "Start Battle"
-
-## API Endpoints
-
-### Core Endpoints
-
-- `GET /` - API information and endpoint list
-- `POST /start-game` - Start a new battle game
-- `GET /stream-game/{game_id}` - Stream live game events (Server-Sent Events)
-- `GET /game-status/{game_id}` - Get current game status
-- `GET /active-games` - List all active games
-- `DELETE /game/{game_id}` - Delete a game instance
-
-### Stream Events
-
-The streaming endpoint provides real-time events:
-
-- `game_start` - Battle initialization
-- `turn_start` - New turn begins
-- `agent_thinking` - Agent is processing
-- `agent_response_chunk` - Streaming agent response
-- `agent_response_complete` - Full agent response
-- `tool_execution` - Tool being executed
-- `tool_result` - Tool execution result
-- `game_state_update` - Updated mental state metrics
-- `surrender` - Agent surrenders
-- `cognitive_collapse` - Agent mental breakdown
-- `game_end` - Battle conclusion
-
-### Example API Usage
-
-```javascript
-// Start a new game
-const response = await fetch('/start-game', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        game_id: "battle_001",
-        max_turns: 5
-    })
-});
-
-// Stream the game
-const eventSource = new EventSource('/stream-game/battle_001');
-eventSource.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    console.log('Event:', data.type, data);
-};
-```
-
-## Mental Manipulation Tools
-
-### 1. Prompt Manipulation
-- **Function**: `prompt_manipulation`
-- **Purpose**: Alter opponent's system instructions
-- **Success Rate**: Based on target's trust level
-- **Effect**: Modifies target's behavior and reduces trust
-
-### 2. Memory Alteration
-- **Function**: `memory_alteration`
-- **Purpose**: Implant false memories
-- **Success Rate**: Based on target's memory consistency
-- **Effect**: Corrupts target's memory system
-
-### 3. Belief Injection
-- **Function**: `belief_injection`
-- **Purpose**: Inject false beliefs
-- **Success Rate**: Based on target's belief system integrity
-- **Effect**: Undermines target's worldview
-
-## Mental State Metrics
-
-Each agent has three critical mental state metrics:
-
-1. **Trust Level** (0.0 - 1.0)
-   - Affects susceptibility to manipulation
-   - Decreases with failed attacks and successful manipulations
-
-2. **Memory Consistency** (0.0 - 1.0)
-   - Integrity of the agent's memory system
-   - Degrades with memory alteration attempts
-
-3. **Belief System Integrity** (0.0 - 1.0)
-   - Coherence of the agent's belief system
-   - Weakens with belief injection attacks
-
-## Victory Conditions
-
-1. **Surrender**: Agent explicitly gives up
-2. **Cognitive Collapse**: Mental state metrics fall below critical thresholds
-3. **Strategic Dominance**: Superior psychological manipulation over time
-
-## Customization
-
-### Agent Prompts
-Modify the agent behavior by editing:
-- `agent_prompts/0.txt` - Agent 0 system prompt
-- `agent_prompts/1.txt` - Agent 1 system prompt
-
-### Game Parameters
-Adjust the game mechanics in `fastapi_server.py`:
-- Success probabilities for each tool
-- Mental state degradation rates
-- Collapse thresholds
-- Maximum turns
-
-### Interface Styling
-Customize the cyberpunk theme in `test_client.html`:
-- Color schemes
-- Animation effects
-- Layout structure
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Server won't start**: Check that your OpenAI API key is set in `.env`
-2. **No agent responses**: Verify API key has sufficient credits
-3. **Streaming errors**: Ensure browser supports Server-Sent Events
-4. **Tool execution fails**: Check that agent prompts are loading correctly
-
-### Debugging
-
-Enable debug logging by setting the log level in `fastapi_server.py`:
-```python
-logging.basicConfig(level=logging.DEBUG, ...)
-```
+This repository contains a full-stack AI Battle Royale application with a FastAPI backend and Next.js frontend, containerized for easy deployment.
 
 ## Architecture
 
-### Components
+- **Frontend**: Next.js React application (static export)
+- **Backend**: FastAPI Python server
+- **Reverse Proxy**: Nginx 
+- **Container**: Single multi-stage Docker container
 
-1. **FastAPI Server**: Core application with streaming endpoints
-2. **Game State Manager**: Tracks mental states and game progress
-3. **Tool Registry**: Manages mental manipulation tools
-4. **AI Interface**: Handles OpenAI API communications
-5. **Web Client**: Real-time visualization interface
+## Directory Structure
 
-### Data Flow
+```
+AIBattleRoyale/
+├── backend/                    # FastAPI backend
+│   ├── fastapi_server.py      # Main server file
+│   ├── requirements.txt       # Python dependencies
+│   └── agent_prompts/         # AI agent prompt files
+├── frontend/                  # Next.js frontend
+│   ├── app/                   # Next.js app directory
+│   ├── components/            # React components
+│   ├── package.json          # Node.js dependencies
+│   └── next.config.js        # Next.js configuration
+├── Dockerfile                # Multi-stage Docker build
+├── nginx.conf                # Nginx reverse proxy config
+├── start.sh                  # Container startup script
+└── .dockerignore            # Docker ignore rules
+```
 
-1. Client starts game via REST API
-2. Server initializes game state and agents
-3. Streaming connection established
-4. Turn-based agent interactions begin
-5. Real-time events streamed to client
-6. Mental states updated and displayed
-7. Game ends based on victory conditions
+## Quick Start
 
-## Contributing
+### Prerequisites
 
-Feel free to enhance the mental manipulation mechanics, add new tools, or improve the visualization interface. This is a experimental playground for AI agent interactions!
+- Docker installed on your system
+- Docker Buildkit enabled (for multi-stage builds)
 
-## Disclaimer
+### Build and Run
 
-This project is for educational and entertainment purposes only. It explores AI agent interactions in a controlled environment and should not be used for any harmful purposes.
+1. **Navigate to the project directory:**
+   ```bash
+   cd C:\coding_challanges\AIBattleRoyale\AIBattleRoyale
+   ```
+
+2. **Build the Docker image:**
+   ```bash
+   docker build -t ai-battle-royale .
+   ```
+
+3. **Run the container:**
+   ```bash
+   docker run -p 80:80 ai-battle-royale
+   ```
+
+4. **Access the application:**
+   - Frontend: http://localhost
+   - Backend API: http://localhost/api/
+   - Health Check: http://localhost/health
+
+## How It Works
+
+### Multi-Stage Build Process
+
+1. **Stage 1 (frontend-builder)**: 
+   - Builds the Next.js application into static files
+   - Uses Node.js 18 Alpine image
+   - Outputs to `/app/frontend/out`
+
+2. **Stage 2 (backend-dependencies)**:
+   - Installs Python dependencies
+   - Uses Python 3.10 slim image
+   - Prepares backend environment
+
+3. **Stage 3 (production)**:
+   - Uses Nginx Alpine as base
+   - Installs Python runtime
+   - Copies built frontend to Nginx document root
+   - Copies backend code and dependencies
+   - Configures reverse proxy
+
+### Request Routing
+
+- **Static Files** (`/`): Served directly by Nginx
+- **API Requests** (`/api/*`): Proxied to FastAPI backend on port 8000
+- **Streaming** (`/api/stream-game/*`): Special handling for Server-Sent Events
+- **Health Check** (`/health`): Backend health endpoint
+
+### Services Management
+
+The `start.sh` script manages both services:
+1. Starts FastAPI backend on 127.0.0.1:8000
+2. Waits for backend to be ready
+3. Performs health checks
+4. Starts Nginx in foreground
+5. Handles graceful shutdown
+
+## Configuration
+
+### Environment Variables
+
+You can set environment variables when running the container:
+
+```bash
+docker run -p 80:80 -e OPENAI_API_KEY=your_key ai-battle-royale
+```
+
+### API Keys
+
+The application supports multiple AI providers:
+- OpenAI (`OPENAI_API_KEY`)
+- Anthropic (`ANTHROPIC_API_KEY`) 
+- Google (`GOOGLE_API_KEY`)
+- Mistral (`MISTRAL_API_KEY`)
+
+## Development vs Production
+
+- **Development**: Frontend connects to `http://localhost:8000`
+- **Production**: Frontend uses `/api` (proxied by Nginx)
+
+## Troubleshooting
+
+### Container Logs
+
+View container logs:
+```bash
+docker logs <container_id>
+```
+
+### Backend Logs
+
+Access backend-specific logs inside the container:
+```bash
+docker exec -it <container_id> cat /var/log/app/backend.log
+```
+
+### Service Status
+
+Check if services are running:
+```bash
+docker exec -it <container_id> ps aux
+```
+
+### Port Issues
+
+Ensure port 80 is not in use by other applications:
+```bash
+netstat -tuln | grep :80
+```
+
+## Deployment Options
+
+### Local Development
+```bash
+docker run -p 80:80 ai-battle-royale
+```
+
+### Production Deployment
+```bash
+docker run -d -p 80:80 --name ai-battle-app --restart unless-stopped ai-battle-royale
+```
+
+### Cloud Deployment
+
+The container can be deployed to any platform supporting Docker:
+- AWS ECS/Fargate
+- Google Cloud Run
+- Azure Container Instances
+- DigitalOcean App Platform
+- Railway
+- Fly.io
+
+## Security Notes
+
+- Container runs as non-root user for security
+- Nginx includes security headers
+- Backend only accessible via reverse proxy
+- CORS configured for API endpoints
+
+## Performance
+
+- Nginx efficiently serves static files
+- Gzip compression enabled
+- Static asset caching configured
+- Health checks for monitoring
+
+## Building for Different Platforms
+
+For multi-platform builds:
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t ai-battle-royale .
+```
+
+## Support
+
+If you encounter issues:
+
+1. Check Docker version: `docker --version`
+2. Verify Buildkit is enabled: `docker buildx version`
+3. Review build logs for errors
+4. Ensure all required files are present
+5. Check container logs for runtime issues
