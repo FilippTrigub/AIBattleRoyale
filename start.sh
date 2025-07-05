@@ -33,18 +33,35 @@ wait_for_service() {
     return 1
 }
 
-# Start FastAPI backend in background
-echo "🐍 Starting FastAPI backend..."
-cd /app/backend
+# Start Next.js frontend in background
+echo "⚛️  Starting Next.js frontend..."
+cd /app/frontend
 
 # Create log directory
 mkdir -p /var/log/app
+
+# Start Next.js production server
+NODE_ENV=production npm start > /var/log/app/frontend.log 2>&1 &
+FRONTEND_PID=$!
+
+echo "📝 Frontend started with PID: $FRONTEND_PID"
+
+# Start FastAPI backend in background
+echo "🐍 Starting FastAPI backend..."
+cd /app/backend
 
 # Start FastAPI with proper logging
 python3 -u fastapi_server.py > /var/log/app/backend.log 2>&1 &
 BACKEND_PID=$!
 
 echo "📝 Backend started with PID: $BACKEND_PID"
+
+# Wait for frontend to be ready
+if ! wait_for_service "127.0.0.1" "3000" "Next.js Frontend"; then
+    echo "❌ Frontend failed to start, checking logs..."
+    tail -n 20 /var/log/app/frontend.log
+    exit 1
+fi
 
 # Wait for backend to be ready
 if ! wait_for_service "127.0.0.1" "8000" "FastAPI Backend"; then
@@ -86,11 +103,16 @@ shutdown() {
     echo "   Stopping Nginx..."
     nginx -s quit
     
+    # Stop Next.js frontend
+    echo "   Stopping Next.js frontend (PID: $FRONTEND_PID)..."
+    kill -TERM $FRONTEND_PID 2>/dev/null
+    
     # Stop FastAPI backend
     echo "   Stopping FastAPI backend (PID: $BACKEND_PID)..."
     kill -TERM $BACKEND_PID 2>/dev/null
     
     # Wait for processes to stop
+    wait $FRONTEND_PID 2>/dev/null
     wait $BACKEND_PID 2>/dev/null
     
     echo "✅ All services stopped"
@@ -103,6 +125,8 @@ trap shutdown TERM INT
 # Start Nginx in foreground
 echo "✅ All services started successfully!"
 echo "🎯 Application ready at http://localhost"
+echo "⚛️  Frontend (Next.js) running on http://localhost:3000"
+echo "🐍 Backend (FastAPI) running on http://localhost:8000"
 echo "📊 Backend API available at http://localhost/api/"
 echo "📈 Health check: http://localhost/health"
 

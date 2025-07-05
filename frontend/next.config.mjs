@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable static HTML export
-  output: 'export',
+  // Use standard production build (not static export)
+  // output: 'export', // Removed - incompatible with SSE and dynamic features
   
-  // Add trailing slash to URLs for better static hosting compatibility
+  // Add trailing slash to URLs for better compatibility
   trailingSlash: true,
   
-  // Optimize images for static export
+  // Optimize images for production
   images: {
     unoptimized: true
   },
@@ -14,8 +14,8 @@ const nextConfig = {
   // Configure asset prefix for production
   assetPrefix: process.env.NODE_ENV === 'production' ? '' : '',
   
-  // Configure build output directory
-  distDir: 'out',
+  // Use default .next directory
+  // distDir: 'out', // Removed - using default .next
   
   // Build configuration
   eslint: {

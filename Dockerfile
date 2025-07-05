@@ -19,8 +19,8 @@ RUN pnpm run build --no-lint
 
 # Verify the build output and list contents for debugging
 RUN ls -la /app/frontend/
-RUN ls -la /app/frontend/out/ || echo "out directory not found, checking .next/"
-RUN ls -la /app/frontend/.next/ || echo ".next directory not found"
+RUN echo "Build completed - checking .next directory:"
+RUN ls -la /app/frontend/.next/ || echo ".next directory not found - build may have failed"
 
 # Stage 2: Setup Python dependencies
 FROM python:3.10-slim AS backend-dependencies
@@ -39,10 +39,10 @@ COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Stage 3: Final production stage with Nginx
-FROM nginx:alpine AS production
+# Stage 3: Final production stage with Node.js + Python + Nginx
+FROM node:18-alpine AS production
 
-# Install Python and system dependencies
+# Install Python, Nginx and system dependencies
 RUN apk add --no-cache \
     python3 \
     py3-pip \
@@ -52,7 +52,8 @@ RUN apk add --no-cache \
     linux-headers \
     curl \
     netcat-openbsd \
-    bash
+    bash \
+    nginx
 
 # Create app directory
 WORKDIR /app
@@ -64,25 +65,22 @@ COPY --from=backend-dependencies /usr/local/bin /usr/local/bin
 # Copy backend source code
 COPY backend/ ./backend/
 
-# First copy the frontend build to a temp location
-COPY --from=frontend-builder /app/frontend /tmp/frontend-build
+# Copy frontend build and install production dependencies
+COPY --from=frontend-builder /app/frontend/.next ./frontend/.next/
+COPY --from=frontend-builder /app/frontend/package.json ./frontend/
+COPY --from=frontend-builder /app/frontend/public ./frontend/public/
+COPY --from=frontend-builder /app/frontend/next.config.mjs ./frontend/
 
-# Copy built frontend static files to Nginx document root
-# Debug first to see what's available
-RUN ls -la /tmp/frontend-build/
-RUN if [ -d "/tmp/frontend-build/out" ]; then \
-        echo "Found out directory, copying..."; \
-        ls -la /tmp/frontend-build/out/; \
-        cp -r /tmp/frontend-build/out/* /usr/share/nginx/html/; \
-    elif [ -d "/tmp/frontend-build/.next" ]; then \
-        echo "Found .next directory, copying..."; \
-        ls -la /tmp/frontend-build/.next/; \
-        cp -r /tmp/frontend-build/.next/* /usr/share/nginx/html/; \
-    else \
-        echo "No build output found! Available directories:"; \
-        find /tmp/frontend-build -type d -name "*build*" -o -name "*out*" -o -name "*dist*" -o -name "*.next*"; \
-        exit 1; \
-    fi
+# Install only production dependencies for Next.js runtime
+WORKDIR /app/frontend
+RUN npm install --omit=dev --silent
+
+# Return to app directory
+WORKDIR /app
+
+# Verify the frontend build
+RUN ls -la /app/frontend/.next/ && \
+    echo "Frontend build copied successfully"
 
 # Copy Nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
