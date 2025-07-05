@@ -22,24 +22,7 @@ RUN ls -la /app/frontend/
 RUN echo "Build completed - checking .next directory:"
 RUN ls -la /app/frontend/.next/ || echo ".next directory not found - build may have failed"
 
-# Stage 2: Setup Python dependencies
-FROM python:3.10-slim AS backend-dependencies
-
-WORKDIR /app
-
-# Install system dependencies for Python packages
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy and install Python requirements
-COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Stage 3: Final production stage with Node.js + Python + Nginx
+# Stage 2: Final production stage with Node.js + Python + Nginx
 FROM node:18-alpine AS production
 
 # Install Python, Nginx and system dependencies
@@ -58,9 +41,15 @@ RUN apk add --no-cache \
 # Create app directory
 WORKDIR /app
 
-# Copy Python packages from dependencies stage
-COPY --from=backend-dependencies /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY --from=backend-dependencies /usr/local/bin /usr/local/bin
+# Copy backend requirements and install them in a virtual environment
+COPY backend/requirements.txt ./
+RUN python3 -m venv /opt/venv && \
+    . /opt/venv/bin/activate && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Add virtual environment to PATH
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy backend source code
 COPY backend/ ./backend/
